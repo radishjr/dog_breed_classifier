@@ -1,26 +1,64 @@
 import tensorflow as tf
 import pandas as pd
 import os
-import Settings
 #from distutils.sysconfig import get_python_lib
 #print(get_python_lib())
+
+import pandas as pd
+import os
+
+def generateFeedingDataCSV():
+    print("generateFeedingDataCSV 0")
+    feeding_data_path = os.path.dirname(os.path.abspath(__file__)) + "/"
+    feeding_data_csv_path = feeding_data_path + "labels.csv"
+    if not os.path.isfile(feeding_data_csv_path):
+        
+        print("generateFeedingDataCSV 1")
+        input_data_path = feeding_data_path + "input_data/"
+
+        csv_path = input_data_path + "labels.csv"
+        dog_breed_df = pd.read_csv(csv_path)
+        updated = False
+
+        index_list = dog_breed_df['breed'].value_counts().index
+        key_value_mapping = {}
+        current_i = 0
+
+        print("generateFeedingDataCSV 2")
+        for index in index_list:
+            key_value_mapping[index] = current_i
+            current_i = current_i+1
+
+        dog_breed_df['breed_int'] = dog_breed_df['breed'].map(key_value_mapping)
+        updated = True
+
+        dog_breed_df["filepath"] = dog_breed_df["id"].apply(lambda x: input_data_path + "images/train/" + x + ".jpg")
+        updated = True
+
+        print("generateFeedingDataCSV updated")
+        print(updated)
+        if updated:
+            dog_breed_df.to_csv(feeding_data_csv_path)
+
+
 def _parse_function_X(filename, labels):
     #将图片数据转换成矩阵输入
     image_string = tf.read_file(filename)
     image_decoded = tf.image.decode_jpeg(image_string, channels=3)
-    image_resized = tf.image.resize_images(image_decoded, [Settings.IMAGE_WIDTH, Settings.IMAGE_HEIGHT], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    image_resized = tf.image.resize_images(image_decoded, 
+        [tf.flags.FLAGS.image_size, tf.flags.FLAGS.image_size], 
+        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
     image_resized = tf.to_float(image_resized)
-    #label_matrix = tf.to_int32(tf.one_hot(label, Settings.CATEGORY_SIZE))
-
-    #label_matrix = tf.constant(labels)
-
-    #print("label_matrix")
-    #print(label_matrix)
-
-    #label_matrix = tf.to_int32(labels)#tf.data.Dataset.from_tensor_slices(label)
+    #label_matrix = tf.to_int32(tf.one_hot(label, tf.flags.FLAGS.category_size))
     return image_resized, labels
 
 def generateTrainingData():
+    print("generateTrainingData")
+    feeding_data_path = os.path.dirname(os.path.abspath(__file__)) + "/"
+    feeding_data_csv_path = feeding_data_path + "labels.csv"
+    if not os.path.isfile(feeding_data_csv_path):
+        generateFeedingDataCSV()
+
     current_path = os.path.dirname(os.path.abspath(__file__))
     csvfile = current_path + "/labels.csv"
 
@@ -32,7 +70,6 @@ def generateTrainingData():
     filenames = tf.constant(pathList)
     labels = tf.constant(labelList)
 
-
     #imageDataset = tf.data.Dataset.from_tensor_slices(filenames)
     #imageDataset = imageDataset.map(_parse_function_X)
     #labelsDataset = tf.data.Dataset.from_tensor_slices(labels)
@@ -42,30 +79,17 @@ def generateTrainingData():
     dataset = dataset.map(_parse_function_X)
     return dataset
 
-
-
 def train_input_fn():
     '''
     训练输入函数，返回一个 batch 的 features 和 labels
     '''
-    #train_dataset = tf.data.TFRecordDataset(FLAGS.train_dataset)
-    #train_dataset = train_dataset.map(parser)
-    # num_epochs 为整个数据集的迭代次数
-    #train_dataset = train_dataset.repeat(FLAGS.num_epochs)
-    #train_dataset = train_dataset.batch(FLAGS.batch_size)
-    #train_iterator = train_dataset.make_one_shot_iterator()
-
-    #features, labels = train_iterator.get_next()
-
     train_dataset = generateTrainingData()
     train_dataset = train_dataset.shuffle(1000)
-    train_dataset = train_dataset.repeat(Settings.NUM_EPOCHS)
-    train_dataset = train_dataset.batch(Settings.BATCH_SIZE)
+    train_dataset = train_dataset.repeat(tf.flags.FLAGS.num_epochs)
+    train_dataset = train_dataset.batch(tf.flags.FLAGS.batch_size)
     train_iterator = train_dataset.make_one_shot_iterator()
-
     features, labels = train_iterator.get_next()        
     return features, labels
-
 
 def eval_input_fn():
     '''

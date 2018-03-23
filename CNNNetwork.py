@@ -1,5 +1,4 @@
 import tensorflow as tf
-import Settings
 
 def cnn_model_fn(features, labels, mode):
     """Model function for CNN."""
@@ -24,8 +23,8 @@ def cnn_model_fn(features, labels, mode):
                 kernel_size=[5, 5],
                 padding="same",
                 activation=tf.nn.relu)
-            print("conv1")
-            print(conv1)
+            #print("conv1")
+            #print(conv1)
   
         with tf.name_scope('Pooling_Layer_1'):
             # Pooling Layer #1
@@ -33,8 +32,8 @@ def cnn_model_fn(features, labels, mode):
                                     pool_size=[2, 2], 
                                     strides=2 #每隔多少行取样
                                 )
-            print("pool1")
-            print(pool1)
+            #print("pool1")
+            #print(pool1)
         with tf.name_scope('Convolution_Layer_2'):
             # Convolutional Layer #2 and Pooling Layer #2
             conv2 = tf.layers.conv2d(
@@ -43,22 +42,22 @@ def cnn_model_fn(features, labels, mode):
                 kernel_size=[5, 5],
                 padding="same",
                 activation=tf.nn.relu)
-            print("conv2")
-            print(conv2)
+            #print("conv2")
+            #print(conv2)
 
         with tf.name_scope('Pooling_Layer_2') as scope:
             pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
-            print("pool2")
-            print(pool2)
+            #print("pool2")
+            #print(pool2)
+
         with tf.name_scope('Fully_Connection_Layer') as scope:
             # Dense Layer 
             print(pool2.shape)
             shape_1 = pool2.shape[1] * pool2.shape[2] * 64
-            #shape_1 = int(Settings.IMAGE_HEIGHT / 4 * Settings.IMAGE_WIDTH / 4 * 64)
             pool2_flat = tf.reshape(pool2, [-1, shape_1])
             # print("pool2_flat")
             # print(pool2_flat)
-            dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu, name="fully connected")
+            dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu, name="fullyConnected")
             # print("dense")
             # print(dense)
 
@@ -70,10 +69,11 @@ def cnn_model_fn(features, labels, mode):
         
     with tf.name_scope('Output_layer') as scope:  
         # Logits Layer
-        logits = tf.layers.dense(inputs=dropout, units=Settings.CATEGORY_SIZE)
+        logits = tf.layers.dense(inputs=dropout, units=tf.flags.FLAGS.category_size)
         print("logits")
         print(logits)
 
+    #with tf.name_scope('Prediction') as scope:  
     predictions = {
         # Generate predictions (for PREDICT and EVAL mode)
         "classes": tf.argmax(input=logits, axis=1),
@@ -88,11 +88,16 @@ def cnn_model_fn(features, labels, mode):
     with tf.name_scope('LOSS') as scope:  
         # Calculate Loss (for both TRAIN and EVAL modes)
         loss = tf.losses.sparse_softmax_cross_entropy(labels=input_layer_y, logits=logits)
-        tf.summary.scalar('cross entropy loss', loss) 
+        tf.summary.scalar("cross entropy loss", loss) 
+
+    print("input_layer_y")
+    print(input_layer_y)
+    print("predictions[\"classes\"]")
+    print(predictions["classes"])
 
     accuracy = tf.metrics.accuracy(
-            labels=input_layer_y, predictions=predictions["classes"])
-    #tf.summary.scalar('accuracy', accuracy)
+            labels=input_layer_y, predictions=predictions["classes"], name="accuracy")
+    tf.summary.scalar("accuracy", accuracy[0])
     
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
