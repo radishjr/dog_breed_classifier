@@ -1,4 +1,6 @@
 import tensorflow as tf
+import time
+import datetime
 
 def cnn_model_fn(features, labels, mode):
     """Model function for CNN."""
@@ -12,6 +14,8 @@ def cnn_model_fn(features, labels, mode):
         input_layer_x = features
         input_layer_y = labels
         tf.summary.image('input', input_layer_x, 3)
+        print("input_layer_y")
+        print(input_layer_y)
 
     with tf.name_scope('Hidden'):
         with tf.name_scope('Convolution_Layer_1'):
@@ -50,14 +54,36 @@ def cnn_model_fn(features, labels, mode):
             #print("pool2")
             #print(pool2)
 
+        with tf.name_scope('Convolution_Layer_3'):
+            # Convolutional Layer #2 and Pooling Layer #2
+            conv3 = tf.layers.conv2d(
+                inputs=pool2,
+                filters=128,
+                kernel_size=[5, 5],
+                padding="same",
+                activation=tf.nn.relu)
+            #print("conv2")
+            #print(conv2)
+
+        with tf.name_scope('Pooling_Layer_3') as scope:
+            pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+            #print("pool3")
+            #print(pool3)
+
         with tf.name_scope('Fully_Connection_Layer') as scope:
             # Dense Layer 
-            print(pool2.shape)
-            shape_1 = pool2.shape[1] * pool2.shape[2] * 64
-            pool2_flat = tf.reshape(pool2, [-1, shape_1])
+
+            print(pool3.shape)
+            shape_1 = pool3.shape[1] * pool3.shape[2] * 128
+            pool3_flat = tf.reshape(pool3, [-1, shape_1])
+            dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu, name="fullyConnected")
+            
+            # print(pool2.shape)
+            # shape_1 = pool2.shape[1] * pool2.shape[2] * 64
+            # pool2_flat = tf.reshape(pool2, [-1, shape_1])
             # print("pool2_flat")
             # print(pool2_flat)
-            dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu, name="fullyConnected")
+            # dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu, name="fullyConnected")
             # print("dense")
             # print(dense)
 
@@ -70,6 +96,7 @@ def cnn_model_fn(features, labels, mode):
     with tf.name_scope('Output_layer') as scope:  
         # Logits Layer
         logits = tf.layers.dense(inputs=dropout, units=tf.flags.FLAGS.category_size)
+        
         print("logits")
         print(logits)
 
@@ -82,33 +109,82 @@ def cnn_model_fn(features, labels, mode):
         "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
     }
 
+    class LoggerHook(tf.train.SessionRunHook):
+        """Logs loss and runtime."""
+        def __init__(self, log_steps=None):
+            self.log_steps = log_steps
+
+        def begin(self):
+            self._step = -1
+            self._start_time = time.time()
+
+        def before_run(self, run_context):
+            self._step += 1
+            return tf.train.SessionRunArgs([loss, input_layer_y, predictions])  # Asks for loss value.
+
+        def after_run(self, run_context, run_values):
+            if self._step % self.log_steps == 0:
+                current_time = time.time()
+                duration = current_time - self._start_time
+                self._start_time = current_time
+
+                print("after_run")
+                print(self._start_time)
+                print(run_values.results)
+                loss_value, input_layer_y_value, predictions_value = run_values.results
+                examples_per_sec = self.log_steps * tf.flags.FLAGS.batch_size / duration
+                sec_per_batch = float(duration / self.log_steps)
+
+                format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                    'sec/batch)')
+                print (format_str % (datetime.datetime.now(), self._step, loss_value, examples_per_sec, sec_per_batch))
+                print ("input_layer_y_value")
+                print (input_layer_y_value)
+                print ("predictions_value[\"classes\"]")
+                print (predictions_value["classes"])
+                for i in range(predictions_value["classes"].shape[0]):
+                    if input_layer_y_value[i] == predictions_value["classes"][i]:
+                        print("index %d: %d" %(i, input_layer_y_value[i]))
+
+            
+    logger_hook = LoggerHook(
+        log_steps=10
+    )
+
     if mode == tf.estimator.ModeKeys.PREDICT:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions, 
+            evaluation_hooks=[logger_hook])
 
     with tf.name_scope('LOSS') as scope:  
         # Calculate Loss (for both TRAIN and EVAL modes)
         loss = tf.losses.sparse_softmax_cross_entropy(labels=input_layer_y, logits=logits)
-        tf.summary.scalar("cross entropy loss", loss) 
-
-    print("input_layer_y")
-    print(input_layer_y)
-    print("predictions[\"classes\"]")
-    print(predictions["classes"])
+        tf.summary.scalar("cross entropy loss", loss)    
 
     accuracy = tf.metrics.accuracy(
             labels=input_layer_y, predictions=predictions["classes"], name="accuracy")
-    tf.summary.scalar("accuracy", accuracy[0])
     
+    #correct_pred = tf.equal(tf.argmax(logits, 1), tf.argmax(input_layer_y, 1))
+    #accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+    tf.summary.scalar("accuracy", accuracy[0])
+
     # Configure the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
         train_op = optimizer.minimize(
             loss=loss,
             global_step=tf.train.get_global_step())
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+        return tf.estimator.EstimatorSpec(
+            mode=mode, 
+            loss=loss, 
+            train_op=train_op,
+            predictions=predictions,
+            training_hooks=[logger_hook])
 
     # Add evaluation metrics (for EVAL mode)
     eval_metric_ops = {
         "accuracy": accuracy}
     return tf.estimator.EstimatorSpec(
-        mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
+            mode=mode,
+            loss=loss,
+            eval_metric_ops=eval_metric_ops,
+            predictions=predictions)

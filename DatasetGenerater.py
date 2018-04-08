@@ -101,3 +101,4 @@ def eval_input_fn():
     eval_iterator = eval_dataset.make_one_shot_iterator()
     features, labels = eval_iterator.get_next()        
     return features, labels
+    
