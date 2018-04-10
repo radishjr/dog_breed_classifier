@@ -3,7 +3,7 @@ import pandas as pd
 import os
 #from distutils.sysconfig import get_python_lib
 #print(get_python_lib())
-
+import numpy as np
 import pandas as pd
 import os
 
@@ -50,6 +50,7 @@ def _parse_function_X(filename, labels):
         method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
     image_resized = tf.to_float(image_resized)
     #label_matrix = tf.to_int32(tf.one_hot(label, tf.flags.FLAGS.category_size))
+
     return image_resized, labels
 
 def generateTrainingData():

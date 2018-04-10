@@ -6,12 +6,19 @@ import matplotlib.pyplot as plt
 import os
 
 current_path = os.path.dirname(os.path.abspath(__file__)) + "/"
-model_dir = current_path + "tmp/dog_breed_model_100"
 
 tf.flags.DEFINE_integer('category_size', 120, 'batch size, default: 120')
 tf.flags.DEFINE_integer('num_epochs', 100000, 'batch size, default: 100000')
 tf.flags.DEFINE_integer('batch_size', 200, 'batch size, default: 200')
-tf.flags.DEFINE_integer('image_size', 128, 'image size, default: 128')
+tf.flags.DEFINE_integer('image_size', 64, 'image size, default: 128')
+tf.flags.DEFINE_float('learning_rate', 0.001, 'learning rate, default: 0.001')
+
+
+model_dir = '%stmp/dog_breed_model_cnn_2_lr_%f_size_%d_bs_%d' \
+    % (current_path, 
+    tf.flags.FLAGS.learning_rate,
+    tf.flags.FLAGS.image_size,
+    tf.flags.FLAGS.batch_size)
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -22,11 +29,11 @@ dog_breed_classifier = tf.estimator.Estimator(
 tensors_to_log = {"probabilities": "softmax_tensor"}
 logging_hook = tf.train.LoggingTensorHook(
     tensors=tensors_to_log, 
-    every_n_iter=10)
+    every_n_iter=50)
 
 
 summary_hook = tf.train.SummarySaverHook(
-    save_steps=10,
+    save_steps=50,
     #summary_op="tf.summary.merge_all"
     scaffold=tf.train.Scaffold(summary_op=tf.summary.merge_all())
     )
