@@ -10,15 +10,17 @@ current_path = os.path.dirname(os.path.abspath(__file__)) + "/"
 tf.flags.DEFINE_integer('category_size', 120, 'batch size, default: 120')
 tf.flags.DEFINE_integer('num_epochs', 100000, 'batch size, default: 100000')
 tf.flags.DEFINE_integer('batch_size', 200, 'batch size, default: 200')
-tf.flags.DEFINE_integer('image_size', 64, 'image size, default: 128')
+tf.flags.DEFINE_integer('image_size', 128, 'image size, default: 128')
+tf.flags.DEFINE_bool('use_gpu', True, 'use gpu, default is true')
 tf.flags.DEFINE_float('learning_rate', 0.001, 'learning rate, default: 0.001')
 
 
-model_dir = '%stmp/dog_breed_model_cnn_2_lr_%f_size_%d_bs_%d' \
+model_dir = '%stmp/dog_breed_model_cnn_2_lr_%f_size_%d_bs_%d_gpu_%d' \
     % (current_path, 
     tf.flags.FLAGS.learning_rate,
     tf.flags.FLAGS.image_size,
-    tf.flags.FLAGS.batch_size)
+    tf.flags.FLAGS.batch_size,
+    tf.flags.FLAGS.use_gpu)
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -62,6 +64,7 @@ with tf.Session() as sess:
             summary_hook
         ])
 
+    print("train ")
     saver = tf.train.Saver()
     saver.save(sess, 'model/model.ckpt')
     print("train finished, evaluate")
@@ -73,3 +76,5 @@ with tf.Session() as sess:
             summary_hook
         ])
     print(eval_results)
+
+
